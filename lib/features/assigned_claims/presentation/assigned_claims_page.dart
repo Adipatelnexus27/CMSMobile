@@ -237,6 +237,14 @@ class _AssignedClaimsPageState extends State<AssignedClaimsPage> {
             onPressed: () => Navigator.of(context).pushReplacementNamed("/claim-submission"),
             icon: const Icon(Icons.assignment_add),
           ),
+          IconButton(
+            tooltip: "Documents",
+            onPressed: () => Navigator.of(context).pushReplacementNamed(
+              "/documents",
+              arguments: {"accessToken": _accessTokenController.text.trim()},
+            ),
+            icon: const Icon(Icons.folder),
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -354,6 +362,24 @@ class _AssignedClaimsPageState extends State<AssignedClaimsPage> {
                                   );
                                 },
                           child: const Text("Open Investigation"),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _loading
+                              ? null
+                              : () {
+                                  Navigator.of(context).pushNamed(
+                                    "/documents",
+                                    arguments: {
+                                      "claimId": claimId,
+                                      "accessToken": _accessTokenController.text.trim(),
+                                    },
+                                  );
+                                },
+                          child: const Text("Open Documents"),
                         ),
                       )
                     ],

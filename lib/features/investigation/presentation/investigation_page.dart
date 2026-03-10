@@ -267,6 +267,17 @@ class _InvestigationPageState extends State<InvestigationPage> {
             onPressed: () => Navigator.of(context).pushReplacementNamed("/assigned-claims"),
             icon: const Icon(Icons.assignment_ind),
           ),
+          IconButton(
+            tooltip: "Documents",
+            onPressed: () => Navigator.of(context).pushNamed(
+              "/documents",
+              arguments: {
+                "claimId": _claimIdController.text.trim(),
+                "accessToken": _accessTokenController.text.trim(),
+              },
+            ),
+            icon: const Icon(Icons.folder),
+          ),
         ],
       ),
       body: SingleChildScrollView(

@@ -2,6 +2,7 @@ import "package:flutter/material.dart";
 
 import "../features/assigned_claims/presentation/assigned_claims_page.dart";
 import "../features/claim_submission/presentation/claim_submission_page.dart";
+import "../features/documents/presentation/document_upload_page.dart";
 import "../features/investigation/presentation/investigation_page.dart";
 
 class CmsApp extends StatelessWidget {
@@ -20,6 +21,7 @@ class CmsApp extends StatelessWidget {
         "/claim-submission": (_) => const ClaimSubmissionPage(),
         "/assigned-claims": (_) => const AssignedClaimsPage(),
         "/investigation": (_) => const InvestigationPage(),
+        "/documents": (_) => const DocumentUploadPage(),
       },
     );
   }

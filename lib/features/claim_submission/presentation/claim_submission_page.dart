@@ -1,4 +1,4 @@
-﻿import "package:file_picker/file_picker.dart";
+import "package:file_picker/file_picker.dart";
 import "package:flutter/material.dart";
 
 import "../data/claim_api_client.dart";
@@ -116,6 +116,14 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
             tooltip: "Assigned Claims",
             onPressed: () => Navigator.of(context).pushReplacementNamed("/assigned-claims"),
             icon: const Icon(Icons.assignment_ind),
+          ),
+          IconButton(
+            tooltip: "Documents",
+            onPressed: () => Navigator.of(context).pushReplacementNamed(
+              "/documents",
+              arguments: {"accessToken": _accessTokenController.text.trim()},
+            ),
+            icon: const Icon(Icons.folder),
           ),
         ],
       ),

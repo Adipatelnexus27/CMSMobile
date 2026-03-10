@@ -337,6 +337,24 @@ class _AssignedClaimsPageState extends State<AssignedClaimsPage> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _loading
+                              ? null
+                              : () {
+                                  Navigator.of(context).pushNamed(
+                                    "/investigation",
+                                    arguments: {
+                                      "claimId": claimId,
+                                      "accessToken": _accessTokenController.text.trim(),
+                                    },
+                                  );
+                                },
+                          child: const Text("Open Investigation"),
+                        ),
                       )
                     ],
                   ),

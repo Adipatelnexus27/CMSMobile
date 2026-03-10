@@ -18,6 +18,7 @@ import "../features/auth/presentation/bloc/auth_bloc.dart";
 import "../features/auth/presentation/bloc/auth_event.dart";
 import "../features/auth/presentation/bloc/auth_state.dart";
 import "../features/auth/presentation/pages/login_page.dart";
+import "../features/claim_submission/presentation/claim_submission_page.dart";
 import "../features/dashboard/presentation/pages/dashboard_page.dart";
 import "../features/documents/data/datasources/document_remote_data_source.dart";
 import "../features/documents/data/repositories/document_repository_impl.dart";
@@ -113,6 +114,7 @@ class CmsApp extends StatelessWidget {
             "/dashboard": (_) => const DashboardPage(),
             "/login": (_) => const LoginPage(),
             "/assigned-claims": (_) => const AssignedClaimsPage(),
+            "/claim-submission": (_) => const ClaimSubmissionPage(),
             "/investigation": (_) => const InvestigationPage(),
             "/document-upload": (_) => const DocumentUploadPage(),
           },

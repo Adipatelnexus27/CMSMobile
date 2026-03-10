@@ -1,6 +1,9 @@
 import "package:file_picker/file_picker.dart";
 import "package:flutter/material.dart";
+import "package:flutter_bloc/flutter_bloc.dart";
 
+import "../../auth/presentation/bloc/auth_bloc.dart";
+import "../../auth/presentation/bloc/auth_state.dart";
 import "../data/claim_api_client.dart";
 
 class ClaimSubmissionPage extends StatefulWidget {
@@ -18,7 +21,6 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
   final _incidentLocationController = TextEditingController();
   final _incidentDescriptionController = TextEditingController();
   final _relatedClaimsController = TextEditingController();
-  final _accessTokenController = TextEditingController();
 
   final ClaimApiClient _claimApiClient = ClaimApiClient();
 
@@ -36,9 +38,10 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
     _incidentLocationController.dispose();
     _incidentDescriptionController.dispose();
     _relatedClaimsController.dispose();
-    _accessTokenController.dispose();
     super.dispose();
   }
+
+  String? get _accessToken => context.read<AuthBloc>().state.session?.accessToken;
 
   Future<void> _pickDocuments() async {
     final result = await FilePicker.platform.pickFiles(allowMultiple: true);
@@ -61,6 +64,11 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
     });
 
     try {
+      final accessToken = _accessToken;
+      if (accessToken == null || accessToken.trim().isEmpty) {
+        throw Exception("Please sign in before submitting a claim.");
+      }
+
       final relatedClaimIds = _relatedClaimsController.text
           .split(",")
           .map((item) => item.trim())
@@ -75,7 +83,7 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
         incidentLocation: _incidentLocationController.text.trim(),
         incidentDescription: _incidentDescriptionController.text.trim(),
         relatedClaimIds: relatedClaimIds,
-        accessToken: _accessTokenController.text.trim().isEmpty ? null : _accessTokenController.text.trim(),
+        accessToken: accessToken,
       );
 
       final claimId = claim["claimId"]?.toString();
@@ -87,7 +95,7 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
         await _claimApiClient.uploadDocument(
           claimId: claimId,
           file: file,
-          accessToken: _accessTokenController.text.trim().isEmpty ? null : _accessTokenController.text.trim(),
+          accessToken: accessToken,
         );
       }
 
@@ -108,6 +116,14 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+
+    if (authState.status != AuthStatus.authenticated || authState.session == null) {
+      return const Scaffold(
+        body: Center(child: Text("Please login to submit a claim.")),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Claim Submission"),
@@ -120,8 +136,7 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
           IconButton(
             tooltip: "Documents",
             onPressed: () => Navigator.of(context).pushReplacementNamed(
-              "/documents",
-              arguments: {"accessToken": _accessTokenController.text.trim()},
+              "/document-upload",
             ),
             icon: const Icon(Icons.folder),
           ),
@@ -168,12 +183,20 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
                       );
 
                       if (selectedDate != null) {
+                        if (!context.mounted) {
+                          return;
+                        }
+
                         final selectedTime = await showTimePicker(
                           context: context,
                           initialTime: TimeOfDay.fromDateTime(_incidentDateTime),
                         );
 
                         if (selectedTime != null) {
+                          if (!mounted) {
+                            return;
+                          }
+
                           setState(() {
                             _incidentDateTime = DateTime(
                               selectedDate.year,
@@ -205,12 +228,6 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
               TextFormField(
                 controller: _relatedClaimsController,
                 decoration: const InputDecoration(labelText: "Related Claim IDs (comma separated, optional)"),
-              ),
-              TextFormField(
-                controller: _accessTokenController,
-                decoration: const InputDecoration(labelText: "Access Token (required if API auth is enabled)"),
-                minLines: 1,
-                maxLines: 3,
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(

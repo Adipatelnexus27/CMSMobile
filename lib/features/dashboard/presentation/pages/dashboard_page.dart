@@ -41,6 +41,12 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 _DashboardActionCard(
+                  title: "Submit Claim",
+                  subtitle: "Register a new claim and upload supporting documents.",
+                  icon: Icons.assignment_add,
+                  onTap: () => Navigator.of(context).pushNamed("/claim-submission"),
+                ),
+                _DashboardActionCard(
                   title: "Assigned Claims",
                   subtitle: "View and manage claims assigned to your role.",
                   icon: Icons.assignment_ind,

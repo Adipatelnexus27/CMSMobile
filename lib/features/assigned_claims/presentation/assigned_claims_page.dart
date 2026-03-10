@@ -63,7 +63,7 @@ class _AssignedClaimsPageState extends State<AssignedClaimsPage> {
               padding: const EdgeInsets.all(16),
               children: [
                 DropdownButtonFormField<String>(
-                  value: _selectedRole,
+                  initialValue: _selectedRole,
                   decoration: const InputDecoration(
                     labelText: "Role",
                     border: OutlineInputBorder(),

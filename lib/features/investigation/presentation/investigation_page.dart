@@ -162,6 +162,9 @@ class _InvestigationPageState extends State<InvestigationPage> {
     if (image == null) {
       return;
     }
+    if (!mounted) {
+      return;
+    }
 
     context.read<InvestigationBloc>().add(
           InvestigationDocumentUploaded(
@@ -279,7 +282,7 @@ class _InvestigationPageState extends State<InvestigationPage> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   decoration: const InputDecoration(
                     labelText: "Document Category",
                     border: OutlineInputBorder(),

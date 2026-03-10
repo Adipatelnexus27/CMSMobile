@@ -156,7 +156,7 @@ class _DocumentUploadPageState extends State<DocumentUploadPage> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: _category,
+                initialValue: _category,
                 decoration: const InputDecoration(
                   labelText: "Document Category",
                   border: OutlineInputBorder(),

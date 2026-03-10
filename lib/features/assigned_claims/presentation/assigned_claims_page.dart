@@ -1,8 +1,11 @@
-import "dart:convert";
-
 import "package:flutter/material.dart";
+import "package:flutter_bloc/flutter_bloc.dart";
 
-import "../data/assigned_claim_api_client.dart";
+import "../../auth/presentation/bloc/auth_bloc.dart";
+import "../../auth/presentation/bloc/auth_state.dart";
+import "bloc/assigned_claims_bloc.dart";
+import "bloc/assigned_claims_event.dart";
+import "bloc/assigned_claims_state.dart";
 
 class AssignedClaimsPage extends StatefulWidget {
   const AssignedClaimsPage({super.key});
@@ -12,383 +15,147 @@ class AssignedClaimsPage extends StatefulWidget {
 }
 
 class _AssignedClaimsPageState extends State<AssignedClaimsPage> {
-  final _accessTokenController = TextEditingController();
-  final _assigneeUserIdController = TextEditingController();
-
-  final AssignedClaimApiClient _assignedClaimApiClient = AssignedClaimApiClient();
-
-  String _role = "Investigator";
-  bool _loading = false;
-  String? _errorMessage;
-  String? _successMessage;
-  List<Map<String, dynamic>> _claims = <Map<String, dynamic>>[];
+  String _selectedRole = "Investigator";
 
   @override
-  void dispose() {
-    _accessTokenController.dispose();
-    _assigneeUserIdController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadAssignedClaims() async {
-    final accessToken = _accessTokenController.text.trim();
-    if (accessToken.isEmpty) {
-      setState(() {
-        _errorMessage = "Access token is required.";
-        _successMessage = null;
-      });
-      return;
-    }
-
-    var assigneeUserId = _assigneeUserIdController.text.trim();
-    assigneeUserId = assigneeUserId.isNotEmpty ? assigneeUserId : (_extractUserIdFromToken(accessToken) ?? "");
-
-    if (assigneeUserId.isEmpty) {
-      setState(() {
-        _errorMessage = "Assignee User ID is required. Provide it manually or use a token with name identifier claim.";
-        _successMessage = null;
-      });
-      return;
-    }
-
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-      _successMessage = null;
-      _assigneeUserIdController.text = assigneeUserId;
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadClaims();
     });
-
-    try {
-      final claims = await _assignedClaimApiClient.getAssignedClaims(
-        assigneeUserId: assigneeUserId,
-        role: _role,
-        accessToken: accessToken,
-      );
-
-      setState(() {
-        _claims = claims;
-        _successMessage = "Loaded ${claims.length} assigned claim(s).";
-      });
-    } catch (error) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
-    } finally {
-      setState(() {
-        _loading = false;
-      });
-    }
   }
 
-  Future<void> _updateClaimStatus(Map<String, dynamic> claim) async {
-    final claimId = claim["claimId"]?.toString() ?? "";
-    final currentStatus = claim["claimStatus"]?.toString() ?? "";
-    if (claimId.isEmpty) {
-      setState(() {
-        _errorMessage = "Claim ID is missing.";
-      });
+  void _loadClaims() {
+    final authState = context.read<AuthBloc>().state;
+    final token = authState.session?.accessToken;
+    if (token == null || token.trim().isEmpty) {
       return;
     }
 
-    final statusController = TextEditingController(text: currentStatus);
-    final status = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Update Claim Status"),
-          content: TextField(
-            controller: statusController,
-            decoration: const InputDecoration(labelText: "Claim Status"),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Cancel")),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(statusController.text.trim()),
-              child: const Text("Save"),
-            )
-          ],
+    context.read<AssignedClaimsBloc>().add(
+          AssignedClaimsRequested(accessToken: token, role: _selectedRole),
         );
-      },
-    );
-
-    if (status == null || status.isEmpty) {
-      return;
-    }
-
-    await _runClaimMutation(
-      action: () => _assignedClaimApiClient.updateClaimStatus(
-        claimId: claimId,
-        claimStatus: status,
-        accessToken: _accessTokenController.text.trim(),
-      ),
-      successMessage: "Claim status updated.",
-    );
-  }
-
-  Future<void> _updateWorkflowStep(Map<String, dynamic> claim) async {
-    final claimId = claim["claimId"]?.toString() ?? "";
-    final currentStep = claim["workflowStep"]?.toString() ?? "Registration";
-    if (claimId.isEmpty) {
-      setState(() {
-        _errorMessage = "Claim ID is missing.";
-      });
-      return;
-    }
-
-    final stepController = TextEditingController(text: currentStep);
-    final step = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Update Workflow Step"),
-          content: TextField(
-            controller: stepController,
-            decoration: const InputDecoration(labelText: "Workflow Step"),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Cancel")),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(stepController.text.trim()),
-              child: const Text("Save"),
-            )
-          ],
-        );
-      },
-    );
-
-    if (step == null || step.isEmpty) {
-      return;
-    }
-
-    await _runClaimMutation(
-      action: () => _assignedClaimApiClient.updateWorkflowStep(
-        claimId: claimId,
-        workflowStep: step,
-        accessToken: _accessTokenController.text.trim(),
-      ),
-      successMessage: "Workflow step updated.",
-    );
-  }
-
-  Future<void> _runClaimMutation({
-    required Future<void> Function() action,
-    required String successMessage,
-  }) async {
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-      _successMessage = null;
-    });
-
-    try {
-      await action();
-      await _loadAssignedClaims();
-      setState(() {
-        _successMessage = successMessage;
-      });
-    } catch (error) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
-    } finally {
-      setState(() {
-        _loading = false;
-      });
-    }
-  }
-
-  String? _extractUserIdFromToken(String token) {
-    final parts = token.split(".");
-    if (parts.length < 2) {
-      return null;
-    }
-
-    try {
-      final payloadBytes = base64Url.decode(base64Url.normalize(parts[1]));
-      final payloadMap = jsonDecode(utf8.decode(payloadBytes)) as Map<String, dynamic>;
-
-      const candidateKeys = [
-        "nameid",
-        "sub",
-        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
-      ];
-
-      for (final key in candidateKeys) {
-        final value = payloadMap[key];
-        if (value is String && value.trim().isNotEmpty) {
-          return value.trim();
-        }
-      }
-
-      return null;
-    } catch (_) {
-      return null;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+
+    if (authState.status != AuthStatus.authenticated || authState.session == null) {
+      return const Scaffold(
+        body: Center(child: Text("Please login to access assigned claims.")),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Assigned Claims"),
-        actions: [
-          IconButton(
-            tooltip: "Claim Submission",
-            onPressed: () => Navigator.of(context).pushReplacementNamed("/claim-submission"),
-            icon: const Icon(Icons.assignment_add),
-          ),
-          IconButton(
-            tooltip: "Documents",
-            onPressed: () => Navigator.of(context).pushReplacementNamed(
-              "/documents",
-              arguments: {"accessToken": _accessTokenController.text.trim()},
-            ),
-            icon: const Icon(Icons.folder),
-          ),
-        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _accessTokenController,
-              decoration: const InputDecoration(
-                labelText: "Access Token",
-                helperText: "Required for API authorization",
-              ),
-              minLines: 1,
-              maxLines: 3,
-            ),
-            TextField(
-              controller: _assigneeUserIdController,
-              decoration: const InputDecoration(
-                labelText: "Assignee User ID",
-                helperText: "Optional if token contains NameIdentifier claim",
-              ),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _role,
-              items: const [
-                DropdownMenuItem(value: "Investigator", child: Text("Investigator")),
-                DropdownMenuItem(value: "Adjuster", child: Text("Adjuster")),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _role = value;
-                  });
-                }
-              },
-              decoration: const InputDecoration(labelText: "Role"),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _loadAssignedClaims,
-                child: Text(_loading ? "Loading..." : "Load Assigned Claims"),
-              ),
-            ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-              ),
-            if (_successMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(_successMessage!, style: const TextStyle(color: Colors.green)),
-              ),
-            const SizedBox(height: 16),
-            ..._claims.map((claim) {
-              final claimId = claim["claimId"]?.toString() ?? "";
-              final claimNumber = claim["claimNumber"]?.toString() ?? "N/A";
-              final policyNumber = claim["policyNumber"]?.toString() ?? "N/A";
-              final claimType = claim["claimType"]?.toString() ?? "N/A";
-              final claimStatus = claim["claimStatus"]?.toString() ?? "N/A";
-              final priority = claim["priority"]?.toString() ?? "N/A";
-              final workflowStep = claim["workflowStep"]?.toString() ?? "N/A";
-              final reporterName = claim["reporterName"]?.toString() ?? "N/A";
+      body: BlocBuilder<AssignedClaimsBloc, AssignedClaimsState>(
+        builder: (context, state) {
+          final isLoading = state.status == AssignedClaimsStatus.loading;
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Claim Number: $claimNumber", style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text("Claim ID: $claimId"),
-                      Text("Policy: $policyNumber"),
-                      Text("Type: $claimType"),
-                      Text("Status: $claimStatus"),
-                      Text("Priority: $priority"),
-                      Text("Workflow Step: $workflowStep"),
-                      Text("Reporter: $reporterName"),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _loading ? null : () => _updateClaimStatus(claim),
-                              child: const Text("Update Status"),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _loading ? null : () => _updateWorkflowStep(claim),
-                              child: const Text("Update Workflow"),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: _loading
-                              ? null
-                              : () {
-                                  Navigator.of(context).pushNamed(
-                                    "/investigation",
-                                    arguments: {
-                                      "claimId": claimId,
-                                      "accessToken": _accessTokenController.text.trim(),
-                                    },
-                                  );
-                                },
-                          child: const Text("Open Investigation"),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: _loading
-                              ? null
-                              : () {
-                                  Navigator.of(context).pushNamed(
-                                    "/documents",
-                                    arguments: {
-                                      "claimId": claimId,
-                                      "accessToken": _accessTokenController.text.trim(),
-                                    },
-                                  );
-                                },
-                          child: const Text("Open Documents"),
-                        ),
-                      )
-                    ],
+          return RefreshIndicator(
+            onRefresh: () async {
+              _loadClaims();
+            },
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                DropdownButtonFormField<String>(
+                  value: _selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: "Role",
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: "Investigator", child: Text("Investigator")),
+                    DropdownMenuItem(value: "Adjuster", child: Text("Adjuster")),
+                  ],
+                  onChanged: isLoading
+                      ? null
+                      : (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            _selectedRole = value;
+                          });
+                          _loadClaims();
+                        },
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : _loadClaims,
+                    child: Text(isLoading ? "Loading..." : "Load Assigned Claims"),
                   ),
                 ),
-              );
-            }),
-          ],
-        ),
+                if (state.errorMessage != null && state.errorMessage!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(state.errorMessage!, style: const TextStyle(color: Colors.red)),
+                ],
+                const SizedBox(height: 12),
+                if (state.claims.isEmpty && state.status == AssignedClaimsStatus.success)
+                  const Text("No assigned claims found."),
+                ...state.claims.map(
+                  (claim) => Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "${claim.claimNumber} (${claim.claimStatus})",
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text("Policy: ${claim.policyNumber}"),
+                          Text("Type: ${claim.claimType}"),
+                          Text("Priority: ${claim.priority}"),
+                          Text("Workflow: ${claim.workflowStep}"),
+                          Text("Reporter: ${claim.reporterName}"),
+                          Text("Incident: ${claim.incidentDateUtc.toLocal()}".split(".").first),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pushNamed(
+                                      "/investigation",
+                                      arguments: {"claimId": claim.claimId},
+                                    );
+                                  },
+                                  child: const Text("Investigation"),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pushNamed(
+                                      "/document-upload",
+                                      arguments: {"claimId": claim.claimId},
+                                    );
+                                  },
+                                  child: const Text("Documents"),
+                                ),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

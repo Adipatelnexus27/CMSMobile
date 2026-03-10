@@ -11,6 +11,10 @@ dependencies:
     sdk: flutter
   http: ^1.2.2
   file_picker: ^8.0.7
+  flutter_bloc: ^8.1.6
+  equatable: ^2.0.5
+  shared_preferences: ^2.3.2
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

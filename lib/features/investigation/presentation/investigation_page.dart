@@ -1,7 +1,13 @@
 import "package:file_picker/file_picker.dart";
 import "package:flutter/material.dart";
+import "package:flutter_bloc/flutter_bloc.dart";
+import "package:image_picker/image_picker.dart";
 
-import "../data/investigation_api_client.dart";
+import "../../auth/presentation/bloc/auth_bloc.dart";
+import "../../auth/presentation/bloc/auth_state.dart";
+import "bloc/investigation_bloc.dart";
+import "bloc/investigation_event.dart";
+import "bloc/investigation_state.dart";
 
 class InvestigationPage extends StatefulWidget {
   const InvestigationPage({super.key});
@@ -11,108 +17,104 @@ class InvestigationPage extends StatefulWidget {
 }
 
 class _InvestigationPageState extends State<InvestigationPage> {
-  static const List<String> _categories = [
-    "Evidence",
-    "AccidentPhoto",
-    "PoliceReport",
-    "MedicalReport",
-  ];
+  static const categories = ["Evidence", "AccidentPhoto", "PoliceReport", "MedicalReport"];
 
-  final _accessTokenController = TextEditingController();
   final _claimIdController = TextEditingController();
   final _noteController = TextEditingController();
   final _noteProgressController = TextEditingController();
-
-  final InvestigationApiClient _investigationApiClient = InvestigationApiClient();
-
-  bool _initializedFromArgs = false;
-  bool _loading = false;
-  String? _errorMessage;
-  String? _successMessage;
+  final _imagePicker = ImagePicker();
 
   int _progressPercent = 0;
-  String _documentCategory = "Evidence";
+  String _selectedCategory = "Evidence";
   PlatformFile? _selectedFile;
-
-  Map<String, dynamic>? _investigation;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    if (_initializedFromArgs) {
-      return;
-    }
-
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map) {
-      final claimId = args["claimId"]?.toString() ?? "";
-      final accessToken = args["accessToken"]?.toString() ?? "";
-
-      if (claimId.isNotEmpty) {
+    if (args is Map<String, dynamic>) {
+      final claimId = args["claimId"]?.toString();
+      if (claimId != null && claimId.isNotEmpty && _claimIdController.text != claimId) {
         _claimIdController.text = claimId;
-      }
-
-      if (accessToken.isNotEmpty) {
-        _accessTokenController.text = accessToken;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _loadInvestigation());
       }
     }
-
-    _initializedFromArgs = true;
   }
 
   @override
   void dispose() {
-    _accessTokenController.dispose();
     _claimIdController.dispose();
     _noteController.dispose();
     _noteProgressController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadInvestigation() async {
-    final accessToken = _accessTokenController.text.trim();
-    final claimId = _claimIdController.text.trim();
+  String? get _accessToken {
+    return context.read<AuthBloc>().state.session?.accessToken;
+  }
 
-    if (accessToken.isEmpty || claimId.isEmpty) {
-      setState(() {
-        _errorMessage = "Access token and Claim ID are required.";
-        _successMessage = null;
-      });
+  void _loadInvestigation() {
+    final token = _accessToken;
+    final claimId = _claimIdController.text.trim();
+    if (token == null || token.isEmpty || claimId.isEmpty) {
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-      _successMessage = null;
-    });
+    context.read<InvestigationBloc>().add(
+          InvestigationLoaded(claimId: claimId, accessToken: token),
+        );
+  }
 
-    try {
-      final response = await _investigationApiClient.getInvestigation(
-        claimId: claimId,
-        accessToken: accessToken,
-      );
-
-      setState(() {
-        _investigation = response;
-        final responseProgress = response["investigationProgress"];
-        if (responseProgress is int) {
-          _progressPercent = responseProgress;
-        } else {
-          _progressPercent = int.tryParse(responseProgress?.toString() ?? "0") ?? 0;
-        }
-        _successMessage = "Investigation loaded.";
-      });
-    } catch (error) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
-    } finally {
-      setState(() {
-        _loading = false;
-      });
+  void _updateProgress() {
+    final token = _accessToken;
+    final claimId = _claimIdController.text.trim();
+    if (token == null || token.isEmpty || claimId.isEmpty) {
+      return;
     }
+
+    if (_progressPercent < 0 || _progressPercent > 100) {
+      return;
+    }
+
+    context.read<InvestigationBloc>().add(
+          InvestigationProgressUpdated(
+            claimId: claimId,
+            progressPercent: _progressPercent,
+            accessToken: token,
+          ),
+        );
+  }
+
+  void _submitNote() {
+    final token = _accessToken;
+    final claimId = _claimIdController.text.trim();
+    final note = _noteController.text.trim();
+
+    if (token == null || token.isEmpty || claimId.isEmpty || note.isEmpty) {
+      return;
+    }
+
+    int? snapshot;
+    final snapshotText = _noteProgressController.text.trim();
+    if (snapshotText.isNotEmpty) {
+      snapshot = int.tryParse(snapshotText);
+      if (snapshot == null || snapshot < 0 || snapshot > 100) {
+        return;
+      }
+    }
+
+    context.read<InvestigationBloc>().add(
+          InvestigationNoteSubmitted(
+            claimId: claimId,
+            noteText: note,
+            progressPercentSnapshot: snapshot,
+            accessToken: token,
+          ),
+        );
+
+    _noteController.clear();
+    _noteProgressController.clear();
   }
 
   Future<void> _pickDocument() async {
@@ -124,306 +126,229 @@ class _InvestigationPageState extends State<InvestigationPage> {
     }
   }
 
-  Future<void> _uploadDocument() async {
-    final accessToken = _accessTokenController.text.trim();
+  void _uploadSelectedDocument() {
+    final token = _accessToken;
     final claimId = _claimIdController.text.trim();
+    final selected = _selectedFile;
 
-    if (accessToken.isEmpty || claimId.isEmpty || _selectedFile == null) {
-      setState(() {
-        _errorMessage = "Access token, Claim ID, and selected file are required.";
-        _successMessage = null;
-      });
+    if (token == null || token.isEmpty || claimId.isEmpty || selected == null || selected.path == null) {
       return;
     }
 
-    await _runMutation(
-      mutation: () => _investigationApiClient.uploadInvestigationDocument(
-        claimId: claimId,
-        file: _selectedFile!,
-        documentCategory: _documentCategory,
-        accessToken: accessToken,
-      ),
-      successMessage: "$_documentCategory uploaded successfully.",
-      clearSelection: true,
-    );
-  }
+    context.read<InvestigationBloc>().add(
+          InvestigationDocumentUploaded(
+            claimId: claimId,
+            filePath: selected.path!,
+            fileName: selected.name,
+            documentCategory: _selectedCategory,
+            accessToken: token,
+          ),
+        );
 
-  Future<void> _addNote() async {
-    final accessToken = _accessTokenController.text.trim();
-    final claimId = _claimIdController.text.trim();
-    final note = _noteController.text.trim();
-
-    if (accessToken.isEmpty || claimId.isEmpty || note.isEmpty) {
-      setState(() {
-        _errorMessage = "Access token, Claim ID, and note text are required.";
-        _successMessage = null;
-      });
-      return;
-    }
-
-    int? progressSnapshot;
-    if (_noteProgressController.text.trim().isNotEmpty) {
-      progressSnapshot = int.tryParse(_noteProgressController.text.trim());
-      if (progressSnapshot == null || progressSnapshot < 0 || progressSnapshot > 100) {
-        setState(() {
-          _errorMessage = "Note progress snapshot must be between 0 and 100.";
-          _successMessage = null;
-        });
-        return;
-      }
-    }
-
-    await _runMutation(
-      mutation: () => _investigationApiClient.addInvestigatorNote(
-        claimId: claimId,
-        noteText: note,
-        progressPercentSnapshot: progressSnapshot,
-        accessToken: accessToken,
-      ),
-      successMessage: "Investigator note added.",
-      clearNote: true,
-    );
-  }
-
-  Future<void> _updateProgress() async {
-    final accessToken = _accessTokenController.text.trim();
-    final claimId = _claimIdController.text.trim();
-
-    if (accessToken.isEmpty || claimId.isEmpty) {
-      setState(() {
-        _errorMessage = "Access token and Claim ID are required.";
-        _successMessage = null;
-      });
-      return;
-    }
-
-    if (_progressPercent < 0 || _progressPercent > 100) {
-      setState(() {
-        _errorMessage = "Progress must be between 0 and 100.";
-        _successMessage = null;
-      });
-      return;
-    }
-
-    await _runMutation(
-      mutation: () => _investigationApiClient.updateInvestigationProgress(
-        claimId: claimId,
-        progressPercent: _progressPercent,
-        accessToken: accessToken,
-      ),
-      successMessage: "Investigation progress updated.",
-    );
-  }
-
-  Future<void> _runMutation({
-    required Future<void> Function() mutation,
-    required String successMessage,
-    bool clearSelection = false,
-    bool clearNote = false,
-  }) async {
     setState(() {
-      _loading = true;
-      _errorMessage = null;
-      _successMessage = null;
+      _selectedFile = null;
     });
+  }
 
-    try {
-      await mutation();
-      await _loadInvestigation();
+  Future<void> _capturePhotoAndUpload() async {
+    final token = _accessToken;
+    final claimId = _claimIdController.text.trim();
 
-      setState(() {
-        _successMessage = successMessage;
-        if (clearSelection) {
-          _selectedFile = null;
-        }
-
-        if (clearNote) {
-          _noteController.clear();
-          _noteProgressController.clear();
-        }
-      });
-    } catch (error) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
-    } finally {
-      setState(() {
-        _loading = false;
-      });
+    if (token == null || token.isEmpty || claimId.isEmpty) {
+      return;
     }
+
+    final image = await _imagePicker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    if (image == null) {
+      return;
+    }
+
+    context.read<InvestigationBloc>().add(
+          InvestigationDocumentUploaded(
+            claimId: claimId,
+            filePath: image.path,
+            fileName: image.name,
+            documentCategory: "AccidentPhoto",
+            accessToken: token,
+          ),
+        );
   }
 
   @override
   Widget build(BuildContext context) {
-    final documents = (_investigation?["documents"] as List?)?.whereType<Map>().toList() ?? const [];
-    final notes = (_investigation?["notes"] as List?)?.whereType<Map>().toList() ?? const [];
+    final authState = context.watch<AuthBloc>().state;
+
+    if (authState.status != AuthStatus.authenticated || authState.session == null) {
+      return const Scaffold(
+        body: Center(child: Text("Please login to use investigation tools.")),
+      );
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Claim Investigation"),
-        actions: [
-          IconButton(
-            tooltip: "Assigned Claims",
-            onPressed: () => Navigator.of(context).pushReplacementNamed("/assigned-claims"),
-            icon: const Icon(Icons.assignment_ind),
-          ),
-          IconButton(
-            tooltip: "Documents",
-            onPressed: () => Navigator.of(context).pushNamed(
-              "/documents",
-              arguments: {
-                "claimId": _claimIdController.text.trim(),
-                "accessToken": _accessTokenController.text.trim(),
-              },
-            ),
-            icon: const Icon(Icons.folder),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _accessTokenController,
-              decoration: const InputDecoration(labelText: "Access Token"),
-              minLines: 1,
-              maxLines: 3,
-            ),
-            TextField(
-              controller: _claimIdController,
-              decoration: const InputDecoration(labelText: "Claim ID"),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _loadInvestigation,
-                child: Text(_loading ? "Loading..." : "Load Investigation"),
-              ),
-            ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-              ),
-            if (_successMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(_successMessage!, style: const TextStyle(color: Colors.green)),
-              ),
-            const SizedBox(height: 16),
-            if (_investigation != null) ...[
-              Text(
-                "Claim Number: ${_investigation?["claimNumber"] ?? "N/A"}",
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              Text("Claim Status: ${_investigation?["claimStatus"] ?? "N/A"}"),
-              Text("Investigation Progress: $_progressPercent%"),
-              const SizedBox(height: 8),
-              Slider(
-                value: _progressPercent.toDouble(),
-                min: 0,
-                max: 100,
-                divisions: 100,
-                label: "$_progressPercent%",
-                onChanged: _loading
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _progressPercent = value.round();
-                        });
-                      },
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _loading ? null : _updateProgress,
-                  child: const Text("Update Investigation Progress"),
+      appBar: AppBar(title: const Text("Investigation Upload")),
+      body: BlocConsumer<InvestigationBloc, InvestigationState>(
+        listener: (context, state) {
+          if (state.detail != null) {
+            _progressPercent = state.detail!.investigationProgress;
+          }
+        },
+        builder: (context, state) {
+          final isBusy = state.status == InvestigationStatus.loading || state.status == InvestigationStatus.submitting;
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextField(
+                controller: _claimIdController,
+                decoration: const InputDecoration(
+                  labelText: "Claim ID",
+                  border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noteController,
-                minLines: 3,
-                maxLines: 5,
-                decoration: const InputDecoration(labelText: "Investigator Note"),
-              ),
-              TextField(
-                controller: _noteProgressController,
-                decoration: const InputDecoration(labelText: "Progress Snapshot (optional)"),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _loading ? null : _addNote,
-                  child: const Text("Add Investigator Note"),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _documentCategory,
-                items: _categories
-                    .map((category) => DropdownMenuItem<String>(value: category, child: Text(category)))
-                    .toList(growable: false),
-                onChanged: _loading
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() {
-                            _documentCategory = value;
-                          });
-                        }
-                      },
-                decoration: const InputDecoration(labelText: "Document Category"),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _loading ? null : _pickDocument,
-                icon: const Icon(Icons.upload_file),
-                label: const Text("Select Document"),
-              ),
-              if (_selectedFile != null) Text("Selected: ${_selectedFile!.name}"),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
+                height: 46,
                 child: ElevatedButton(
-                  onPressed: _loading || _selectedFile == null ? null : _uploadDocument,
-                  child: const Text("Upload Investigation Document"),
+                  onPressed: isBusy ? null : _loadInvestigation,
+                  child: Text(isBusy ? "Loading..." : "Load Investigation"),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text("Documents", style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              ...documents.map((item) {
-                final map = item.map((key, value) => MapEntry(key.toString(), value));
-                return Card(
-                  child: ListTile(
-                    title: Text(map["originalFileName"]?.toString() ?? "N/A"),
-                    subtitle: Text("${map["documentCategory"] ?? "N/A"} | ${map["contentType"] ?? "N/A"}"),
-                    trailing: Text(map["uploadedAtUtc"]?.toString() ?? ""),
+              if (state.errorMessage != null && state.errorMessage!.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(state.errorMessage!, style: const TextStyle(color: Colors.red)),
+              ],
+              if (state.successMessage != null && state.successMessage!.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(state.successMessage!, style: const TextStyle(color: Colors.green)),
+              ],
+              if (state.detail != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  "${state.detail!.claimNumber} (${state.detail!.claimStatus})",
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text("Progress: ${state.detail!.investigationProgress}%"),
+                const SizedBox(height: 8),
+                Slider(
+                  value: _progressPercent.toDouble(),
+                  min: 0,
+                  max: 100,
+                  divisions: 100,
+                  label: "$_progressPercent%",
+                  onChanged: isBusy
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _progressPercent = value.round();
+                          });
+                        },
+                ),
+                SizedBox(
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: isBusy ? null : _updateProgress,
+                    child: const Text("Update Progress"),
                   ),
-                );
-              }),
-              const SizedBox(height: 8),
-              const Text("Investigator Notes", style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              ...notes.map((item) {
-                final map = item.map((key, value) => MapEntry(key.toString(), value));
-                return Card(
-                  child: ListTile(
-                    title: Text(map["noteText"]?.toString() ?? ""),
-                    subtitle: Text("Progress Snapshot: ${map["progressPercentSnapshot"] ?? "-"}"),
-                    trailing: Text(map["createdAtUtc"]?.toString() ?? ""),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _noteController,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: "Investigation Note",
+                    border: OutlineInputBorder(),
                   ),
-                );
-              }),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _noteProgressController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "Progress Snapshot (optional)",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: isBusy ? null : _submitNote,
+                    child: const Text("Add Note"),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  decoration: const InputDecoration(
+                    labelText: "Document Category",
+                    border: OutlineInputBorder(),
+                  ),
+                  items: categories
+                      .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                      .toList(growable: false),
+                  onChanged: isBusy
+                      ? null
+                      : (value) {
+                          if (value == null) {
+                            return;
+                          }
+
+                          setState(() {
+                            _selectedCategory = value;
+                          });
+                        },
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: isBusy ? null : _pickDocument,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text("Pick Document"),
+                ),
+                if (_selectedFile != null) Text("Selected: ${_selectedFile!.name}"),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: isBusy || _selectedFile == null ? null : _uploadSelectedDocument,
+                    child: const Text("Upload Document"),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: isBusy ? null : _capturePhotoAndUpload,
+                    icon: const Icon(Icons.photo_camera),
+                    label: const Text("Capture Photo & Upload"),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text("Uploaded Documents", style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                ...state.detail!.documents.map(
+                  (document) => ListTile(
+                    dense: true,
+                    title: Text(document.originalFileName),
+                    subtitle: Text("${document.documentCategory} | ${document.contentType}"),
+                    trailing: Text(document.uploadedAtUtc.toLocal().toString().split(".").first),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text("Notes", style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                ...state.detail!.notes.map(
+                  (note) => ListTile(
+                    dense: true,
+                    title: Text(note.noteText),
+                    subtitle: Text("Progress Snapshot: ${note.progressPercentSnapshot ?? "-"}"),
+                    trailing: Text(note.createdAtUtc.toLocal().toString().split(".").first),
+                  ),
+                ),
+              ],
             ],
-          ],
-        ),
+          );
+        },
       ),
     );
   }

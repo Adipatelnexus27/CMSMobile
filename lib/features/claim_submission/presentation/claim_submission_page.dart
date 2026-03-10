@@ -111,6 +111,13 @@ class _ClaimSubmissionPageState extends State<ClaimSubmissionPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Claim Submission"),
+        actions: [
+          IconButton(
+            tooltip: "Assigned Claims",
+            onPressed: () => Navigator.of(context).pushReplacementNamed("/assigned-claims"),
+            icon: const Icon(Icons.assignment_ind),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

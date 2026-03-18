@@ -1,39 +1,37 @@
-import "package:flutter/material.dart";
-import "package:flutter_bloc/flutter_bloc.dart";
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import "../core/config/api_config.dart";
-import "../core/network/api_client.dart";
-import "../core/storage/session_storage.dart";
-import "../features/assigned_claims/data/datasources/assigned_claims_remote_data_source.dart";
-import "../features/assigned_claims/data/repositories/assigned_claims_repository_impl.dart";
-import "../features/assigned_claims/domain/usecases/get_assigned_claims_usecase.dart";
-import "../features/assigned_claims/presentation/assigned_claims_page.dart";
-import "../features/assigned_claims/presentation/bloc/assigned_claims_bloc.dart";
-import "../features/auth/data/datasources/auth_remote_data_source.dart";
-import "../features/auth/data/repositories/auth_repository_impl.dart";
-import "../features/auth/domain/usecases/login_usecase.dart";
-import "../features/auth/domain/usecases/logout_usecase.dart";
-import "../features/auth/domain/usecases/restore_session_usecase.dart";
-import "../features/auth/presentation/bloc/auth_bloc.dart";
-import "../features/auth/presentation/bloc/auth_event.dart";
-import "../features/auth/presentation/bloc/auth_state.dart";
-import "../features/auth/presentation/pages/login_page.dart";
-import "../features/claim_submission/presentation/claim_submission_page.dart";
-import "../features/dashboard/presentation/pages/dashboard_page.dart";
-import "../features/documents/data/datasources/document_remote_data_source.dart";
-import "../features/documents/data/repositories/document_repository_impl.dart";
-import "../features/documents/domain/usecases/get_claim_documents_usecase.dart";
-import "../features/documents/domain/usecases/upload_document_usecase.dart";
-import "../features/documents/presentation/bloc/document_bloc.dart";
-import "../features/documents/presentation/document_upload_page.dart";
-import "../features/investigation/data/datasources/investigation_remote_data_source.dart";
-import "../features/investigation/data/repositories/investigation_repository_impl.dart";
-import "../features/investigation/domain/usecases/add_investigation_note_usecase.dart";
-import "../features/investigation/domain/usecases/get_investigation_usecase.dart";
-import "../features/investigation/domain/usecases/update_investigation_progress_usecase.dart";
-import "../features/investigation/domain/usecases/upload_investigation_document_usecase.dart";
-import "../features/investigation/presentation/bloc/investigation_bloc.dart";
-import "../features/investigation/presentation/investigation_page.dart";
+import '../core/config/api_config.dart';
+import '../core/network/api_client.dart';
+import '../core/storage/session_storage.dart';
+import '../core/theme/app_theme.dart';
+import '../core/navigation/app_router.dart';
+import '../core/navigation/main_navigation.dart';
+import '../features/assigned_claims/data/datasources/assigned_claims_remote_data_source.dart';
+import '../features/assigned_claims/data/repositories/assigned_claims_repository_impl.dart';
+import '../features/assigned_claims/domain/usecases/get_assigned_claims_usecase.dart';
+import '../features/assigned_claims/presentation/bloc/assigned_claims_bloc.dart';
+import '../features/auth/data/datasources/auth_remote_data_source.dart';
+import '../features/auth/data/repositories/auth_repository_impl.dart';
+import '../features/auth/domain/usecases/login_usecase.dart';
+import '../features/auth/domain/usecases/logout_usecase.dart';
+import '../features/auth/domain/usecases/restore_session_usecase.dart';
+import '../features/auth/presentation/bloc/auth_bloc.dart';
+import '../features/auth/presentation/bloc/auth_event.dart';
+import '../features/auth/presentation/bloc/auth_state.dart';
+import '../features/auth/presentation/pages/login_page.dart';
+import '../features/documents/data/datasources/document_remote_data_source.dart';
+import '../features/documents/data/repositories/document_repository_impl.dart';
+import '../features/documents/domain/usecases/get_claim_documents_usecase.dart';
+import '../features/documents/domain/usecases/upload_document_usecase.dart';
+import '../features/documents/presentation/bloc/document_bloc.dart';
+import '../features/investigation/data/datasources/investigation_remote_data_source.dart';
+import '../features/investigation/data/repositories/investigation_repository_impl.dart';
+import '../features/investigation/domain/usecases/add_investigation_note_usecase.dart';
+import '../features/investigation/domain/usecases/get_investigation_usecase.dart';
+import '../features/investigation/domain/usecases/update_investigation_progress_usecase.dart';
+import '../features/investigation/domain/usecases/upload_investigation_document_usecase.dart';
+import '../features/investigation/presentation/bloc/investigation_bloc.dart';
 
 class CmsApp extends StatelessWidget {
   const CmsApp({super.key});
@@ -103,21 +101,14 @@ class CmsApp extends StatelessWidget {
           ),
         ],
         child: MaterialApp(
-          title: "CMS Mobile",
+          title: 'CMS Mobile',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF005F73)),
-            useMaterial3: true,
-          ),
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: ThemeMode.light,
           home: const _AuthGate(),
-          routes: {
-            "/dashboard": (_) => const DashboardPage(),
-            "/login": (_) => const LoginPage(),
-            "/assigned-claims": (_) => const AssignedClaimsPage(),
-            "/claim-submission": (_) => const ClaimSubmissionPage(),
-            "/investigation": (_) => const InvestigationPage(),
-            "/document-upload": (_) => const DocumentUploadPage(),
-          },
+          onGenerateRoute: AppRouter.generateRoute,
+          routes: AppRouter.routes,
         ),
       ),
     );
@@ -133,7 +124,7 @@ class _AuthGate extends StatelessWidget {
       builder: (context, state) {
         switch (state.status) {
           case AuthStatus.authenticated:
-            return const DashboardPage();
+            return const MainNavigationPage();
           case AuthStatus.unauthenticated:
           case AuthStatus.failure:
             return const LoginPage();

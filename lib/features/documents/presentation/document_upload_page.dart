@@ -119,7 +119,7 @@ class _DocumentUploadPageState extends State<DocumentUploadPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Document Upload")),
+      appBar: AppBar(title: const Text("Document Management")),
       body: BlocBuilder<DocumentBloc, DocumentState>(
         builder: (context, state) {
           final isBusy = state.status == DocumentStatus.loading || state.status == DocumentStatus.submitting;
@@ -127,102 +127,350 @@ class _DocumentUploadPageState extends State<DocumentUploadPage> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(
-                controller: _claimIdController,
-                decoration: const InputDecoration(
-                  labelText: "Claim ID",
-                  border: OutlineInputBorder(),
+              // Load Documents Section
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
                 ),
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text("Latest Versions Only"),
-                value: _latestOnly,
-                onChanged: isBusy
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _latestOnly = value;
-                        });
-                      },
-              ),
-              SizedBox(
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: isBusy ? null : _loadDocuments,
-                  child: Text(isBusy ? "Loading..." : "Load Documents"),
-                ),
-              ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: _category,
-                decoration: const InputDecoration(
-                  labelText: "Document Category",
-                  border: OutlineInputBorder(),
-                ),
-                items: categories
-                    .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-                    .toList(growable: false),
-                onChanged: isBusy
-                    ? null
-                    : (value) {
-                        if (value == null) {
-                          return;
-                        }
-
-                        setState(() {
-                          _category = value;
-                        });
-                      },
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _documentGroupIdController,
-                decoration: const InputDecoration(
-                  labelText: "Document Group ID (optional)",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: isBusy ? null : _pickFile,
-                icon: const Icon(Icons.upload_file),
-                label: const Text("Pick File"),
-              ),
-              if (_selectedFile != null)
-                Text("Selected: ${_selectedFile!.name}"),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: isBusy || _selectedFile == null ? null : _uploadDocument,
-                  child: const Text("Upload Document"),
-                ),
-              ),
-              if (state.errorMessage != null && state.errorMessage!.trim().isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(state.errorMessage!, style: const TextStyle(color: Colors.red)),
-              ],
-              if (state.successMessage != null && state.successMessage!.trim().isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(state.successMessage!, style: const TextStyle(color: Colors.green)),
-              ],
-              const SizedBox(height: 16),
-              if (state.documents.isEmpty && state.status == DocumentStatus.ready)
-                const Text("No documents found for this claim."),
-              ...state.documents.map(
-                (document) => Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    title: Text(document.originalFileName),
-                    subtitle: Text(
-                      "${document.documentCategory} | v${document.versionNumber} | Latest: ${document.isLatest}",
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Load Claim Documents",
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    trailing: Text(document.uploadedAtUtc.toLocal().toString().split(".").first),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _claimIdController,
+                      enabled: !isBusy,
+                      decoration: InputDecoration(
+                        labelText: "Claim ID",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.assignment),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text("Latest Versions Only"),
+                      subtitle: const Text("Show only the newest version of each document"),
+                      value: _latestOnly,
+                      onChanged: isBusy
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _latestOnly = value;
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        onPressed: isBusy ? null : _loadDocuments,
+                        icon: isBusy
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.autorenew),
+                        label: Text(isBusy ? "Loading..." : "Load Documents"),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Error Message
+              if (state.errorMessage != null && state.errorMessage!.trim().isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          state.errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 16),
+              ],
+
+              // Success Message
+              if (state.successMessage != null && state.successMessage!.trim().isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: Colors.green),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          state.successMessage!,
+                          style: const TextStyle(color: Colors.green),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Upload New Document Section
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.orange.withOpacity(0.05),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Upload New Document",
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _category,
+                      decoration: InputDecoration(
+                        labelText: "Document Category",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.category),
+                      ),
+                      items: categories
+                          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                          .toList(growable: false),
+                      onChanged: isBusy
+                          ? null
+                          : (value) {
+                              if (value == null) {
+                                return;
+                              }
+
+                              setState(() {
+                                _category = value;
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _documentGroupIdController,
+                      enabled: !isBusy,
+                      decoration: InputDecoration(
+                        labelText: "Document Group ID (optional)",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        prefixIcon: const Icon(Icons.tag),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: isBusy ? null : _pickFile,
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text("Pick File"),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                    if (_selectedFile != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.description, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _selectedFile!.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: isBusy || _selectedFile == null ? null : _uploadDocument,
+                        child: const Text("Upload Document"),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 20),
+
+              // Documents List
+              if (state.documents.isEmpty && state.status == DocumentStatus.ready) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.folder_open_outlined,
+                        size: 48,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "No documents found",
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Load documents or upload a new one to get started",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (state.documents.isNotEmpty) ...[
+                Text(
+                  "Documents (${state.documents.length})",
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...state.documents.map(
+                  (document) => Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.description, size: 32),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  document.originalFileName,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  document.documentCategory,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        "v${document.versionNumber}",
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.blue,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (document.isLatest)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: const Text(
+                                          "Latest",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            document.uploadedAtUtc.toLocal().toString().split(".").first,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey[500],
+                              fontSize: 10,
+                            ),
+                            textAlign: TextAlign.end,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           );
         },

@@ -40,85 +40,165 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: BlocBuilder<AuthBloc, AuthState>(
-                  builder: (context, state) {
-                    final isLoading = state.status == AuthStatus.loading;
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).primaryColor.withOpacity(0.1),
+              Theme.of(context).primaryColor.withOpacity(0.05),
+            ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, state) {
+                  final isLoading = state.status == AuthStatus.loading;
 
-                    return Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            "CMS Mobile Login",
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "Sign in to access assigned claims and investigation workflows.",
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 20),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(
-                              labelText: "Email",
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return "Email is required.";
-                              }
-
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: true,
-                            decoration: const InputDecoration(
-                              labelText: "Password",
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return "Password is required.";
-                              }
-
-                              return null;
-                            },
-                          ),
-                          if (state.errorMessage != null && state.errorMessage!.trim().isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            Text(
-                              state.errorMessage!,
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                          ],
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: isLoading ? null : _submit,
-                              child: Text(isLoading ? "Signing In..." : "Login"),
-                            ),
-                          )
-                        ],
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 24),
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Theme.of(context).primaryColor.withOpacity(0.2),
+                        ),
+                        child: Icon(
+                          Icons.security,
+                          size: 60,
+                          color: Theme.of(context).primaryColor,
+                        ),
                       ),
-                    );
-                  },
-                ),
+                      const SizedBox(height: 32),
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "CMS Mobile",
+                                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Claim Management System",
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 24),
+                                TextFormField(
+                                  controller: _emailController,
+                                  enabled: !isLoading,
+                                  keyboardType: TextInputType.emailAddress,
+                                  decoration: InputDecoration(
+                                    labelText: "Email Address",
+                                    prefixIcon: const Icon(Icons.email_outlined),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return "Email is required.";
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _passwordController,
+                                  enabled: !isLoading,
+                                  obscureText: true,
+                                  decoration: InputDecoration(
+                                    labelText: "Password",
+                                    prefixIcon: const Icon(Icons.lock_outline),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return "Password is required.";
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                if (state.errorMessage != null && state.errorMessage!.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      state.errorMessage!,
+                                      style: const TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  height: 52,
+                                  child: ElevatedButton(
+                                    onPressed: isLoading ? null : _submit,
+                                    style: ElevatedButton.styleFrom(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      isLoading ? "Signing In..." : "Sign In",
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  );
+                },
               ),
             ),
           ),
